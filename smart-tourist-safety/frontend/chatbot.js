@@ -114,6 +114,8 @@ const BOT_KB = [
     • Chat with the AI Tour Guide for recommendations<br>
     • Save and manage multiple trips`
   },
+  {
+    keys: ['how','what','guide','use','using','feature','work','works'],
     reply: `📖 <b>Quick Guide</b><br><br>
     <b>🏠 Dashboard</b> — SOS button + voice detection<br>
     <b>🗺️ Live Map</b> — real-time GPS tracking<br>
