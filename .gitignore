@@ -1,0 +1,7 @@
+smart-tourist-safety/backend/tourist_safety.db
+smart-tourist-safety/backend/__pycache__/
+smart-tourist-safety/backend/*.pyc
+smart-tourist-safety/backend/reset_admin.py
+*.pyc
+__pycache__/
+.env

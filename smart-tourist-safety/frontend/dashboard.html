@@ -1,0 +1,1473 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Tourist Dashboard – Smart Safety</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <link rel="stylesheet" href="design.css"/>
+  <style>
+    /* ── App Shell ── */
+    .app-shell { display: flex; min-height: 100vh; }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      width: 260px; background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex; flex-direction: column;
+      position: fixed; top: 0; left: 0; bottom: 0; z-index: 60;
+      transition: transform 0.3s cubic-bezier(0.4,0,0.2,1);
+    }
+    .sidebar-brand {
+      padding: 1.5rem 1.25rem 1rem;
+      display: flex; align-items: center; gap: 0.75rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .brand-logo {
+      width: 40px; height: 40px; border-radius: 12px;
+      background: linear-gradient(135deg, var(--primary), var(--purple));
+      display: flex; align-items: center; justify-content: center; font-size: 1.2rem;
+    }
+    .brand-name { font-size: 0.95rem; font-weight: 800; }
+    .brand-sub  { font-size: 0.7rem; color: var(--text3); }
+
+    .sidebar-user {
+      padding: 1rem 1.25rem;
+      display: flex; align-items: center; gap: 0.75rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .user-info .user-name { font-size: 0.875rem; font-weight: 700; }
+    .user-info .user-email { font-size: 0.72rem; color: var(--text3); }
+
+    .sidebar-nav { flex: 1; padding: 0.75rem; overflow-y: auto; }
+    .nav-item {
+      display: flex; align-items: center; gap: 0.75rem;
+      padding: 0.7rem 0.9rem; border-radius: var(--radius-sm);
+      color: var(--text2); text-decoration: none; font-size: 0.875rem; font-weight: 500;
+      margin-bottom: 0.15rem; transition: all 0.15s; cursor: pointer;
+      border: none; background: none; font-family: inherit; width: 100%; text-align: left;
+    }
+    .nav-item:hover { background: var(--surface2); color: var(--text); }
+    .nav-item.active { background: rgba(37,99,235,0.1); color: var(--primary); font-weight: 600; }
+    .nav-item .nav-icon { font-size: 1.1rem; width: 22px; text-align: center; }
+    .nav-section-label { font-size: 0.68rem; font-weight: 700; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; padding: 0.75rem 0.9rem 0.35rem; }
+
+    .sidebar-footer { padding: 1rem; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 0.5rem; }
+    .theme-btn {
+      display: flex; align-items: center; gap: 0.6rem;
+      padding: 0.6rem 0.9rem; border-radius: var(--radius-sm);
+      background: var(--surface2); border: none; color: var(--text2);
+      font-family: inherit; font-size: 0.82rem; font-weight: 600; cursor: pointer;
+      transition: background 0.15s;
+    }
+    .theme-btn:hover { background: var(--bg2); }
+    .logout-btn {
+      display: flex; align-items: center; gap: 0.6rem;
+      padding: 0.6rem 0.9rem; border-radius: var(--radius-sm);
+      background: rgba(239,68,68,0.08); border: none; color: var(--danger);
+      font-family: inherit; font-size: 0.82rem; font-weight: 600; cursor: pointer;
+    }
+
+    /* ── Main ── */
+    .main { margin-left: 260px; flex: 1; display: flex; flex-direction: column; min-height: 100vh; }
+
+    /* ── Topbar ── */
+    .topbar {
+      height: 64px; background: var(--glass);
+      backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; padding: 0 1.5rem; gap: 1rem;
+      position: sticky; top: 0; z-index: 50;
+    }
+    .topbar-title { font-size: 1rem; font-weight: 700; flex: 1; }
+    .topbar-actions { display: flex; align-items: center; gap: 0.75rem; }
+    .live-badge { display: flex; align-items: center; gap: 0.4rem; font-size: 0.75rem; font-weight: 600; color: var(--success); }
+
+    /* ── Content ── */
+    .content { flex: 1; padding: 1.5rem; padding-bottom: calc(var(--bottom-nav-h) + 1rem); }
+    .page { display: none; animation: fadeUp 0.35s cubic-bezier(0.34,1.56,0.64,1); }
+    .page.active { display: block; }
+
+    /* ── Home hero ── */
+    .hero-banner {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--purple) 100%);
+      border-radius: var(--radius-lg); padding: 1.75rem;
+      color: #fff; margin-bottom: 1.5rem; position: relative; overflow: hidden;
+    }
+    .hero-banner::before {
+      content: '🛡️'; position: absolute; right: 1.5rem; top: 50%;
+      transform: translateY(-50%); font-size: 5rem; opacity: 0.15;
+    }
+    .hero-banner h2 { font-size: 1.3rem; font-weight: 800; margin-bottom: 0.25rem; }
+    .hero-banner p  { font-size: 0.85rem; opacity: 0.85; }
+    .hero-status { display: inline-flex; align-items: center; gap: 0.4rem; background: rgba(255,255,255,0.2); padding: 0.3rem 0.75rem; border-radius: 20px; font-size: 0.75rem; font-weight: 600; margin-top: 0.75rem; }
+
+    /* ── Action grid ── */
+    .action-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 1rem; margin-bottom: 1.5rem; }
+
+    /* ── SOS section ── */
+    .sos-center { display: flex; flex-direction: column; align-items: center; padding: 2rem 1rem; gap: 1.5rem; }
+    .sos-status { font-size: 0.875rem; color: var(--text2); text-align: center; max-width: 280px; }
+
+    /* ── Weather mini card ── */
+    .weather-mini {
+      background: linear-gradient(135deg, #0ea5e9, #2563eb);
+      border-radius: var(--radius); padding: 1.25rem; color: #fff;
+    }
+    .weather-mini.danger  { background: linear-gradient(135deg, #dc2626, #991b1b); }
+    .weather-mini.warning { background: linear-gradient(135deg, #d97706, #b45309); }
+
+    /* ── Contact card ── */
+    .contact-item {
+      display: flex; align-items: center; gap: 0.75rem;
+      padding: 0.85rem 1rem; background: var(--surface2);
+      border-radius: var(--radius-sm); margin-bottom: 0.5rem;
+    }
+    .contact-item .c-info .c-name { font-size: 0.875rem; font-weight: 600; }
+    .contact-item .c-info .c-meta { font-size: 0.75rem; color: var(--text3); }
+    .contact-item .c-del { margin-left: auto; background: none; border: none; cursor: pointer; font-size: 1rem; opacity: 0.5; transition: opacity 0.15s; }
+    .contact-item .c-del:hover { opacity: 1; }
+
+    /* ── Day card ── */
+    .day-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; margin-bottom: 1rem; }
+    .day-card-head { background: linear-gradient(135deg, var(--primary), var(--primary-dark)); color: #fff; padding: 0.85rem 1.25rem; font-weight: 700; font-size: 0.9rem; display: flex; align-items: center; gap: 0.5rem; }
+    .day-card-body { padding: 1rem 1.25rem; }
+    .day-act { display: flex; align-items: flex-start; gap: 0.6rem; padding: 0.5rem 0; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
+    .day-act:last-child { border-bottom: none; }
+    .day-act-icon { font-size: 1rem; flex-shrink: 0; margin-top: 0.1rem; }
+
+    /* ── Trip card ── */
+    .trip-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.25rem; display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.65rem; transition: transform 0.15s; }
+    .trip-card:hover { transform: translateX(4px); }
+    .trip-dest { font-weight: 700; font-size: 0.9rem; }
+    .trip-meta { font-size: 0.75rem; color: var(--text3); margin-top: 0.2rem; }
+
+    /* ── Tour chatbot ── */
+    .tour-chat { display: flex; flex-direction: column; height: 420px; }
+    .tour-msgs { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 0.6rem; padding: 0.5rem 0; }
+    .tmsg { display: flex; gap: 0.5rem; max-width: 88%; }
+    .tmsg.bot  { align-self: flex-start; }
+    .tmsg.user { align-self: flex-end; flex-direction: row-reverse; }
+    .tbubble { padding: 0.65rem 0.9rem; border-radius: 14px; font-size: 0.83rem; line-height: 1.55; }
+    .tmsg.bot  .tbubble { background: var(--surface2); color: var(--text); border-top-left-radius: 4px; }
+    .tmsg.user .tbubble { background: var(--primary); color: #fff; border-top-right-radius: 4px; }
+
+    /* ── Map ── */
+    #user-map { height: 420px; border-radius: 0 0 var(--radius) var(--radius); overflow: hidden; }
+
+    /* ── Notif banner ── */
+    .notif { padding: 0.75rem 1rem; border-radius: var(--radius-sm); font-size: 0.82rem; margin-bottom: 1rem; display: none; animation: fadeUp 0.3s ease; }
+    .notif.show { display: block; }
+    .notif.success { background: rgba(34,197,94,0.1);  color: var(--success); border: 1px solid rgba(34,197,94,0.2); }
+    .notif.error   { background: rgba(239,68,68,0.1);  color: var(--danger);  border: 1px solid rgba(239,68,68,0.2); }
+    .notif.info    { background: rgba(37,99,235,0.1);  color: var(--primary); border: 1px solid rgba(37,99,235,0.2); }
+
+    /* ── Pref chips ── */
+    .pref-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+
+    /* ── Responsive ── */
+    @media (max-width: 768px) {
+      .sidebar { transform: translateX(-100%); }
+      .sidebar.open { transform: translateX(0); box-shadow: var(--shadow-lg); }
+      .main { margin-left: 0; }
+      .action-grid { grid-template-columns: repeat(2,1fr); }
+      .content { padding: 1rem; padding-bottom: calc(var(--bottom-nav-h) + 1rem); }
+    }
+    @media (max-width: 480px) {
+      .action-grid { grid-template-columns: repeat(2,1fr); }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Toast container -->
+<div class="toast-container" id="toast-container"></div>
+
+<!-- Floating SOS FAB (mobile) -->
+<div class="sos-fab">
+  <button class="sos-fab-btn" onclick="triggerSOS('fab')" title="SOS Emergency">🆘</button>
+</div>
+
+<!-- Sidebar overlay (mobile) -->
+<div id="sidebar-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:59" onclick="closeSidebar()"></div>
+
+<div class="app-shell">
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-logo">🛡️</div>
+      <div>
+        <div class="brand-name">SafeTravel</div>
+        <div class="brand-sub">Smart Tourist Safety</div>
+      </div>
+    </div>
+    <div class="sidebar-user">
+      <div class="avatar" id="s-avatar">T</div>
+      <div class="user-info">
+        <div class="user-name" id="s-name">Tourist</div>
+        <div class="user-email" id="s-email"></div>
+      </div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section-label">Main</div>
+      <button class="nav-item active" data-page="home">    <span class="nav-icon">🏠</span> Dashboard</button>
+      <button class="nav-item" data-page="map">            <span class="nav-icon">🗺️</span> Live Map</button>
+      <button class="nav-item" data-page="planner">        <span class="nav-icon">✈️</span> Trip Planner</button>
+      <div class="nav-section-label">Safety</div>
+      <button class="nav-item" data-page="emergency">      <span class="nav-icon">🚨</span> Emergency SOS</button>
+      <button class="nav-item" data-page="contacts">       <span class="nav-icon">📞</span> Emergency Contacts</button>
+      <button class="nav-item" data-page="weather">        <span class="nav-icon">🌤️</span> Weather Alerts</button>
+      <div class="nav-section-label">More</div>
+      <button class="nav-item" data-page="alerts">         <span class="nav-icon">📋</span> My Alerts</button>
+      <button class="nav-item" data-page="safety">         <span class="nav-icon">⚠️</span> Safety Tips</button>
+    </nav>
+    <div class="sidebar-footer">
+      <button class="theme-btn" onclick="toggleTheme()"><span id="theme-icon">☀️</span> <span id="theme-label">Light Mode</span></button>
+      <button class="logout-btn" onclick="logout()">🚪 Sign Out</button>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <div class="main">
+    <header class="topbar">
+      <button onclick="toggleSidebar()" style="background:none;border:none;cursor:pointer;font-size:1.3rem;color:var(--text);display:none" id="menu-btn">☰</button>
+      <div class="topbar-title" id="topbar-title">Dashboard</div>
+      <div class="topbar-actions">
+        <div class="live-badge"><span class="status-dot online"></span> Live</div>
+        <div class="avatar" id="t-avatar" style="width:36px;height:36px;font-size:0.8rem;cursor:pointer">T</div>
+      </div>
+    </header>
+
+    <div class="content">
+
+      <!-- HOME PAGE -->
+      <div id="page-home" class="page active">
+        <div class="hero-banner anim-fade-up">
+          <h2>Welcome back, <span id="hero-name">Tourist</span> 👋</h2>
+          <p>Your safety is our priority. Stay connected, stay safe.</p>
+          <div class="hero-status"><span class="status-dot online"></span> System Active</div>
+        </div>
+        <div class="action-grid anim-fade-up delay-2">
+          <div class="action-card" onclick="goPage('planner')"><div class="ac-icon" style="background:rgba(37,99,235,0.1)">✈️</div><div class="ac-label">Plan Trip</div><div class="ac-desc">AI itinerary</div></div>
+          <div class="action-card" onclick="goPage('map')"><div class="ac-icon" style="background:rgba(34,197,94,0.1)">🗺️</div><div class="ac-label">Live Map</div><div class="ac-desc">Track location</div></div>
+          <div class="action-card" onclick="goPage('emergency')"><div class="ac-icon" style="background:rgba(239,68,68,0.1)">🚨</div><div class="ac-label">SOS Alert</div><div class="ac-desc">Emergency help</div></div>
+          <div class="action-card" onclick="goPage('weather')"><div class="ac-icon" style="background:rgba(14,165,233,0.1)">🌤️</div><div class="ac-label">Weather</div><div class="ac-desc">Safety alerts</div></div>
+        </div>
+        <div class="grid-2 anim-fade-up delay-3">
+          <div class="card">
+            <div class="section-title">📍 Current Location</div>
+            <div style="display:flex;align-items:center;gap:0.75rem;padding:0.75rem;background:var(--surface2);border-radius:var(--radius-sm);margin-bottom:1rem">
+              <span style="font-size:1.5rem">🌍</span>
+              <div><div style="font-size:0.75rem;color:var(--text3)">Coordinates</div><strong id="coords-home" style="font-size:0.875rem">Not tracking</strong></div>
+            </div>
+            <div style="display:flex;gap:0.5rem">
+              <button class="btn btn-primary" style="flex:1" onclick="startTracking()">▶ Start</button>
+              <button class="btn btn-ghost" style="flex:1" onclick="stopTracking()">⏹ Stop</button>
+            </div>
+          </div>
+          <div id="home-weather-card" class="weather-mini">
+            <div style="display:flex;align-items:center;gap:0.75rem">
+              <span id="hw-icon" style="font-size:2rem">🌤️</span>
+              <div><div style="font-size:1.5rem;font-weight:800"><span id="hw-temp">--</span>°C</div><div style="font-size:0.8rem;opacity:0.85" id="hw-cond">Loading...</div></div>
+            </div>
+            <div id="hw-alert" style="margin-top:0.75rem;font-size:0.78rem;opacity:0.9"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- MAP PAGE -->
+      <div id="page-map" class="page">
+        <div class="page-header"><h2>🗺️ Live Map</h2><p>Real-time GPS tracking</p></div>
+        <div class="card" style="padding:0;overflow:hidden;margin-bottom:1rem">
+          <div style="padding:1rem;display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;border-bottom:1px solid var(--border)">
+            <button class="btn btn-primary" onclick="startTracking()">▶ Start Tracking</button>
+            <button class="btn btn-ghost" onclick="stopTracking()">⏹ Stop</button>
+            <button class="btn btn-ghost" onclick="clearTrack()" style="color:var(--danger)">🗑 Clear Track</button>
+            <span id="map-coords" style="font-size:0.82rem;color:var(--text3);margin-left:auto">No location yet</span>
+          </div>
+          <div id="user-map"></div>
+        </div>
+        <div class="card"><div class="section-title">📋 Visited Places</div><div id="loc-history" style="font-size:0.82rem;color:var(--text3)">Start tracking to see visited places</div></div>
+      </div>
+
+      <!-- EMERGENCY PAGE -->
+      <div id="page-emergency" class="page">
+        <div class="page-header"><h2>🚨 Smart Emergency SOS</h2><p>Describe your situation — AI will respond accordingly</p></div>
+
+        <!-- Smart Input -->
+        <div class="card" style="margin-bottom:1rem">
+          <div id="sos-notif" class="notif"></div>
+          <div class="section-title">💬 Describe Your Situation</div>
+          <div style="display:flex;gap:0.75rem;margin-bottom:0.75rem;flex-wrap:wrap">
+            <div class="input-wrap" style="flex:1;min-width:200px">
+              <span class="input-icon">✍️</span>
+              <input type="text" id="sos-text-input" class="input-field"
+                placeholder="e.g. I am injured, there is a theft, I need a doctor..."
+                onkeydown="if(event.key==='Enter') analyzeSituation()"/>
+            </div>
+            <button class="btn btn-primary" onclick="analyzeSituation()" id="sos-analyze-btn">🔍 Analyze & Respond</button>
+            <button class="btn btn-ghost" id="voice-btn" onclick="toggleVoice()" style="border-radius:8px">🎙️ Voice</button>
+          </div>
+          <div id="voice-status" style="font-size:0.82rem;color:var(--text3);min-height:1.2rem;margin-bottom:0.5rem"></div>
+
+          <!-- Quick situation chips -->
+          <div style="display:flex;flex-wrap:wrap;gap:0.4rem">
+            <button class="chip" onclick="quickSituation('theft')">🔴 Theft/Robbery</button>
+            <button class="chip" onclick="quickSituation('medical')">🏥 Medical Emergency</button>
+            <button class="chip" onclick="quickSituation('accident')">🚗 Accident</button>
+            <button class="chip" onclick="quickSituation('lost')">🗺️ I am Lost</button>
+            <button class="chip" onclick="quickSituation('fire')">🔥 Fire</button>
+            <button class="chip" onclick="quickSituation('animal')">🐾 Animal Attack</button>
+          </div>
+        </div>
+
+        <!-- AI Response Panel -->
+        <div id="sos-response-panel" style="display:none;margin-bottom:1rem">
+          <div class="card" id="sos-response-card">
+            <div id="sos-response-content"></div>
+          </div>
+        </div>
+
+        <!-- SOS Button -->
+        <div class="card" style="margin-bottom:1rem">
+          <div class="sos-center">
+            <button class="sos-button" id="sos-btn" onclick="triggerSOS('button')">
+              <span class="sos-icon">🆘</span><span class="sos-label">SOS</span><span class="sos-sub">PRESS FOR HELP</span>
+            </button>
+            <div class="sos-status" id="sos-status">Press to immediately alert authorities & contacts with your location</div>
+          </div>
+        </div>
+
+        <!-- Nearby Services Map -->
+        <div class="card" style="margin-bottom:1rem;display:none" id="nearby-map-card">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem">
+            <div class="section-title" style="margin:0" id="nearby-map-title">📍 Nearby Services</div>
+            <button class="btn btn-ghost" style="padding:0.3rem 0.75rem;font-size:0.78rem" onclick="document.getElementById('nearby-map-card').style.display='none'">✕</button>
+          </div>
+          <div id="sos-map" style="height:320px;border-radius:var(--radius-sm);overflow:hidden"></div>
+          <div id="nearby-list" style="margin-top:0.75rem;display:flex;flex-direction:column;gap:0.5rem"></div>
+        </div>
+
+        <!-- Emergency Numbers -->
+        <div class="card">
+          <div class="section-title">📞 Emergency Numbers</div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.75rem">
+            <div style="text-align:center;padding:1rem;background:rgba(239,68,68,0.08);border-radius:var(--radius-sm)"><div style="font-size:1.5rem">👮</div><div style="font-weight:800;font-size:1.1rem;color:var(--danger)">100</div><div style="font-size:0.72rem;color:var(--text3)">Police</div></div>
+            <div style="text-align:center;padding:1rem;background:rgba(34,197,94,0.08);border-radius:var(--radius-sm)"><div style="font-size:1.5rem">🚑</div><div style="font-weight:800;font-size:1.1rem;color:var(--success)">108</div><div style="font-size:0.72rem;color:var(--text3)">Ambulance</div></div>
+            <div style="text-align:center;padding:1rem;background:rgba(37,99,235,0.08);border-radius:var(--radius-sm)"><div style="font-size:1.5rem">🏨</div><div style="font-weight:800;font-size:1.1rem;color:var(--primary)">1363</div><div style="font-size:0.72rem;color:var(--text3)">Tourist Help</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CONTACTS PAGE -->
+      <div id="page-contacts" class="page">
+        <div class="page-header"><h2>📞 Emergency Contacts</h2><p>Notified automatically when SOS is triggered</p></div>
+        <div class="grid-2">
+          <div class="card">
+            <div class="section-title">➕ Add Contact</div>
+            <div id="contact-notif" class="notif"></div>
+            <div class="input-group"><label>Full Name *</label><div class="input-wrap"><span class="input-icon">👤</span><input type="text" id="c-name" class="input-field" placeholder="John Doe"/></div></div>
+            <div class="input-group"><label>Phone</label><div class="input-wrap"><span class="input-icon">📱</span><input type="tel" id="c-phone" class="input-field" placeholder="+91 98765 43210"/></div></div>
+            <div class="input-group"><label>Email</label><div class="input-wrap"><span class="input-icon">✉️</span><input type="email" id="c-email" class="input-field" placeholder="john@example.com"/></div></div>
+            <button class="btn btn-primary btn-full" onclick="addContact()">💾 Save Contact</button>
+          </div>
+          <div class="card">
+            <div class="section-title">📋 Saved Contacts <span id="contact-count" style="font-size:0.75rem;color:var(--text3);font-weight:400"></span></div>
+            <div id="contacts-list"><p style="color:var(--text3);font-size:0.875rem">Loading...</p></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- WEATHER PAGE -->
+      <div id="page-weather" class="page">
+        <div class="page-header"><h2>🌤️ Weather & Disaster Alerts</h2><p>Environmental safety for your location</p></div>
+        <div id="weather-loading" style="color:var(--text3);font-size:0.9rem">📡 Getting your location...</div>
+        <div id="weather-content" style="display:none">
+          <div id="weather-card" class="weather-mini" style="margin-bottom:1rem">
+            <div style="font-size:0.8rem;opacity:0.85;margin-bottom:0.75rem" id="w-location-label">📍 Detecting location...</div>
+            <div style="display:flex;align-items:center;gap:1.25rem;margin-bottom:1rem">
+              <span id="w-icon" style="font-size:3.5rem">🌤️</span>
+              <div><div style="font-size:2.5rem;font-weight:800"><span id="w-temp">--</span>°C</div><div style="font-size:1rem;opacity:0.9" id="w-cond">Loading...</div></div>
+            </div>
+            <div style="display:flex;gap:1.5rem;font-size:0.875rem;opacity:0.85"><span>💧 <strong id="w-humidity">--%</strong></span><span>💨 <strong id="w-wind">-- km/h</strong></span></div>
+            <div id="w-alerts" style="margin-top:0.75rem"></div>
+          </div>
+          <div class="card"><div class="section-title">⚠️ Safety Recommendations</div><div id="w-recs" style="font-size:0.875rem;color:var(--text2);line-height:1.8"></div></div>
+        </div>
+        <button class="btn btn-ghost" onclick="loadWeather()" style="margin-top:0.75rem">🔄 Refresh</button>
+      </div>
+
+      <!-- ALERTS PAGE -->
+      <div id="page-alerts" class="page">
+        <div class="page-header"><h2>📋 My SOS Alerts</h2><p>History of your emergency alerts</p></div>
+        <div class="card"><div class="table-wrap"><table><thead><tr><th>#</th><th>Message</th><th>Location</th><th>Status</th><th>Time</th></tr></thead><tbody id="my-alerts-body"><tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--text3)">Loading...</td></tr></tbody></table></div></div>
+      </div>
+
+      <!-- SAFETY PAGE -->
+      <div id="page-safety" class="page">
+        <div class="page-header"><h2>⚠️ Safety Tips</h2><p>Stay safe while travelling</p></div>
+        <div style="display:grid;gap:1rem">
+          <div class="card" style="border-left:4px solid var(--danger)"><div class="section-title">🔴 High Risk Zones</div><p>Avoid isolated areas after dark. Stay in well-lit, populated zones.</p></div>
+          <div class="card" style="border-left:4px solid var(--warning)"><div class="section-title">🟠 General Rules</div><ul style="font-size:0.875rem;color:var(--text2);padding-left:1.25rem;line-height:2.2"><li>Share your itinerary with someone you trust</li><li>Keep emergency contacts saved in the app</li><li>Enable location tracking when exploring</li><li>Carry a fully charged phone at all times</li></ul></div>
+          <div class="card" style="border-left:4px solid var(--success)"><div class="section-title">🟢 Safe Routes</div><p>Prefer main roads and tourist-designated paths.</p></div>
+          <div class="card" style="border-left:4px solid var(--primary)"><div class="section-title">🔵 Emergency Numbers</div><p style="font-size:0.875rem">Police: <strong>100</strong> &nbsp;|&nbsp; Ambulance: <strong>108</strong> &nbsp;|&nbsp; Tourist Helpline: <strong>1363</strong></p></div>
+        </div>
+      </div>
+
+      <!-- TRIP PLANNER PAGE -->
+      <div id="page-planner" class="page">
+        <div class="page-header"><h2>✈️ AI Trip Planner</h2><p>Smart itineraries tailored to you</p></div>
+        <div class="grid-2" style="align-items:start">
+          <div class="card">
+            <div class="section-title">🗺️ Plan a New Trip</div>
+            <div id="plan-notif" class="notif"></div>
+            <div class="input-group"><label>Destination *</label><div class="input-wrap"><span class="input-icon">📍</span><input type="text" id="p-dest" class="input-field" placeholder="Goa, Jaipur, Kerala..." list="dest-list"/><datalist id="dest-list"><option value="Goa"><option value="Delhi"><option value="Mumbai"><option value="Jaipur"><option value="Kerala"><option value="Agra"><option value="Manali"><option value="Varanasi"></datalist></div></div>
+            <div class="grid-2" style="gap:0.75rem">
+              <div class="input-group"><label>Start Date</label><input type="date" id="p-start" class="input-field no-icon"/></div>
+              <div class="input-group"><label>End Date</label><input type="date" id="p-end" class="input-field no-icon"/></div>
+            </div>
+            <div class="input-group"><label>Budget</label><select id="p-budget" class="input-field no-icon"><option value="low">💚 Budget</option><option value="mid" selected>💛 Mid-range</option><option value="high">💎 Luxury</option></select></div>
+            <div class="input-group"><label>Preferences</label><div class="pref-chips" id="pref-chips"><button type="button" class="chip" data-v="adventure">🧗 Adventure</button><button type="button" class="chip" data-v="cultural">🏛️ Cultural</button><button type="button" class="chip" data-v="food">🍜 Food</button><button type="button" class="chip" data-v="nature">🌿 Nature</button><button type="button" class="chip" data-v="relaxation">🧘 Relax</button><button type="button" class="chip" data-v="shopping">🛍️ Shopping</button></div></div>
+            <button class="btn btn-primary btn-full btn-lg" onclick="planTrip()" id="plan-btn">🗺️ Generate Itinerary</button>
+          </div>
+          <div class="card" style="display:flex;flex-direction:column">
+            <div class="section-title">🤖 AI Tour Guide</div>
+            <div class="tour-chat">
+              <div class="tour-msgs" id="tour-msgs"></div>
+              <div style="display:flex;flex-wrap:wrap;gap:0.4rem;margin-bottom:0.75rem">
+                <button class="chip active" onclick="tourChat('Best places in Goa')">🏖️ Goa</button>
+                <button class="chip active" onclick="tourChat('Is Jaipur safe?')">🏰 Safety</button>
+                <button class="chip active" onclick="tourChat('Budget for Kerala')">💰 Budget</button>
+                <button class="chip active" onclick="tourChat('Best travel season')">🌤️ Season</button>
+              </div>
+              <div style="display:flex;gap:0.5rem">
+                <div class="input-wrap" style="flex:1"><span class="input-icon">💬</span><input type="text" id="tour-input" class="input-field" placeholder="Ask about destinations..." onkeydown="if(event.key==='Enter') tourChat()"/></div>
+                <button class="btn btn-primary btn-icon" onclick="tourChat()">➤</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div id="itinerary-result" style="display:none;margin-top:1.5rem">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:0.5rem">
+            <h3 id="itin-title"></h3>
+            <div style="display:flex;gap:0.5rem"><button class="btn btn-ghost" onclick="window.print()">🖨️ Print</button><button class="btn btn-ghost" onclick="shareItin()">📤 Share</button></div>
+          </div>
+          <div id="itin-meta" style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:1rem;font-size:0.82rem;color:var(--text2)"></div>
+          <div id="itin-cards"></div>
+        </div>
+        <div style="margin-top:1.5rem">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem">
+            <div class="section-title" style="margin:0">📋 Saved Trips</div>
+            <button class="btn btn-ghost" style="padding:0.35rem 0.75rem;font-size:0.78rem" onclick="loadTrips()">🔄</button>
+          </div>
+          <div id="saved-trips"><p style="color:var(--text3);font-size:0.875rem">Loading...</p></div>
+        </div>
+      </div>
+
+    </div><!-- content -->
+  </div><!-- main -->
+</div><!-- app-shell -->
+
+<nav class="bottom-nav">
+  <button class="bottom-nav-item active" data-page="home"><span class="nav-icon">🏠</span>Home</button>
+  <button class="bottom-nav-item" data-page="map"><span class="nav-icon">🗺️</span>Map</button>
+  <button class="bottom-nav-item" data-page="emergency"><span class="nav-icon">🚨</span>SOS</button>
+  <button class="bottom-nav-item" data-page="planner"><span class="nav-icon">✈️</span>Plan</button>
+  <button class="bottom-nav-item" data-page="contacts"><span class="nav-icon">📞</span>Contacts</button>
+</nav>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="chatbot.js"></script>
+<script>
+const API   = 'http://localhost:5000';
+const token = localStorage.getItem('token');
+const user  = JSON.parse(localStorage.getItem('user') || 'null');
+if (!token || !user || user.role === 'admin') window.location.href = 'index.html';
+
+// Set user info
+['s-name','hero-name'].forEach(id => { const el=document.getElementById(id); if(el) el.textContent=user.name; });
+['s-avatar','t-avatar'].forEach(id => { const el=document.getElementById(id); if(el) el.textContent=user.name[0].toUpperCase(); });
+document.getElementById('s-email').textContent = user.email || '';
+
+function authH() { return {'Content-Type':'application/json','Authorization':'Bearer '+token}; }
+function logout() { localStorage.clear(); window.location.href='index.html'; }
+
+// Validate token is still good on load
+fetch(`${API}/alerts/my`, { headers: {'Authorization':'Bearer '+token} })
+  .then(r => { if (r.status === 401) { localStorage.clear(); window.location.href='index.html'; } })
+  .catch(() => {});
+
+// ── Theme ─────────────────────────────────────────────────────────────────────
+function toggleTheme() {
+  const html = document.documentElement;
+  const dark = html.getAttribute('data-theme') === 'dark';
+  html.setAttribute('data-theme', dark ? 'light' : 'dark');
+  document.getElementById('theme-icon').textContent  = dark ? '🌙' : '☀️';
+  document.getElementById('theme-label').textContent = dark ? 'Dark Mode' : 'Light Mode';
+  if (userMap) userMap.invalidateSize();
+}
+
+// ── Sidebar ───────────────────────────────────────────────────────────────────
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('sidebar-overlay').style.display =
+    document.getElementById('sidebar').classList.contains('open') ? 'block' : 'none';
+}
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebar-overlay').style.display = 'none';
+}
+
+// Show menu btn on mobile
+if (window.innerWidth <= 768) document.getElementById('menu-btn').style.display = 'block';
+window.addEventListener('resize', () => {
+  document.getElementById('menu-btn').style.display = window.innerWidth <= 768 ? 'block' : 'none';
+});
+
+// ── Navigation ────────────────────────────────────────────────────────────────
+const PAGE_TITLES = { home:'Dashboard', map:'Live Map', emergency:'Emergency SOS', contacts:'Emergency Contacts', weather:'Weather Alerts', alerts:'My Alerts', safety:'Safety Tips', planner:'Trip Planner' };
+
+function goPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item, .bottom-nav-item').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  document.querySelectorAll(`[data-page="${name}"]`).forEach(b => b.classList.add('active'));
+  document.getElementById('topbar-title').textContent = PAGE_TITLES[name] || name;
+  closeSidebar();
+  if (name === 'map') {
+    initUserMap();
+    setTimeout(() => { if (userMap) userMap.invalidateSize(); }, 300);
+  }
+  if (name === 'contacts') loadContacts();
+  if (name === 'weather')  loadWeather();
+  if (name === 'alerts')   loadMyAlerts();
+  if (name === 'planner')  { loadTrips(); initTourChat(); }
+}
+
+document.querySelectorAll('.nav-item[data-page], .bottom-nav-item[data-page]').forEach(b => {
+  b.addEventListener('click', () => goPage(b.dataset.page));
+});
+
+// ── Toast ─────────────────────────────────────────────────────────────────────
+function showToast(title, msg, type='info') {
+  const el = document.createElement('div');
+  el.className = `toast toast-${type}`;
+  el.innerHTML = `<div><div style="font-weight:700;font-size:0.875rem">${title}</div><div style="font-size:0.78rem;color:var(--text2);margin-top:0.2rem">${msg}</div></div>`;
+  document.getElementById('toast-container').appendChild(el);
+  setTimeout(() => el.remove(), 4000);
+}
+
+function showNotif(id, msg, type) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = msg; el.className = `notif show ${type}`;
+  setTimeout(() => el.className = 'notif', 5000);
+}
+
+// ── Tracking ──────────────────────────────────────────────────────────────────
+let trackInterval=null, currentLat=null, currentLng=null;
+let userMap=null, userMarker=null, sosMarker=null;
+const locHistory=[];
+
+function startTracking() {
+  if (!navigator.geolocation) { showToast('Error','Geolocation not supported','danger'); return; }
+
+  // Init map immediately if on map page, or ensure it's ready
+  if (!userMap) initUserMap();
+
+  const trackBtn = document.getElementById('st-tracking');
+  if (trackBtn) trackBtn.textContent = 'ON';
+
+  const send = () => {
+    navigator.geolocation.getCurrentPosition(async pos => {
+      currentLat = pos.coords.latitude;
+      currentLng = pos.coords.longitude;
+      const d = `${currentLat.toFixed(5)}, ${currentLng.toFixed(5)}`;
+      ['coords-home','map-coords'].forEach(id => {
+        const el = document.getElementById(id); if (el) el.textContent = d;
+      });
+      locHistory.unshift({lat:currentLat, lng:currentLng, time:new Date().toLocaleTimeString()});
+      if (locHistory.length > 10) locHistory.pop();
+      updateLocHistory();
+      // Init map if not yet done, then update marker
+      if (!userMap) initUserMap();
+      updateMapMarker(currentLat, currentLng);
+      try {
+        await fetch(`${API}/location`, {method:'POST', headers:authH(),
+          body: JSON.stringify({latitude:currentLat, longitude:currentLng})});
+      } catch {}
+    }, err => {
+      showToast('Location Error', err.message || 'Could not get location', 'danger');
+      console.warn('Geolocation error:', err.code, err.message);
+    }, {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 0
+    });
+  };
+
+  send();
+  trackInterval = setInterval(send, 15000);
+}
+
+function stopTracking() {
+  clearInterval(trackInterval); trackInterval=null;
+  document.getElementById('st-tracking').textContent = 'OFF';
+}
+
+function updateLocHistory() {
+  const el = document.getElementById('loc-history');
+  if (!el || !locHistory.length) return;
+  el.innerHTML = locHistory.map((l, i) => `
+    <div style="padding:0.5rem 0.75rem;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:0.75rem;cursor:pointer"
+         onclick="flyToLocation(${l.lat},${l.lng})" title="Click to view on map">
+      <div style="width:28px;height:28px;border-radius:50%;background:${i===0?'var(--primary)':'var(--surface2)'};
+           border:2px solid ${i===0?'var(--primary)':'var(--border)'};display:flex;align-items:center;
+           justify-content:center;font-size:0.7rem;font-weight:700;color:${i===0?'#fff':'var(--text3)'};flex-shrink:0">
+        ${locHistory.length - i}
+      </div>
+      <div style="flex:1">
+        <div style="font-size:0.82rem;font-weight:600">${i===0?'📍 Current Location':'📌 '+l.lat.toFixed(5)+', '+l.lng.toFixed(5)}</div>
+        <div style="font-size:0.75rem;color:var(--text3)">${l.time}</div>
+      </div>
+      <span style="font-size:0.75rem;color:var(--primary)">View →</span>
+    </div>`).join('');
+}
+
+// ── Map ───────────────────────────────────────────────────────────────────────
+function initUserMap() {
+  const mapEl = document.getElementById('user-map');
+  if (!mapEl) return;
+  if (!userMap) {
+    userMap = L.map('user-map').setView([20.5937, 78.9629], 5);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors',
+      maxZoom: 19
+    }).addTo(userMap);
+  }
+  // Fix grey tiles when map was hidden (common Leaflet issue)
+  setTimeout(() => { userMap.invalidateSize(); }, 200);
+  if (currentLat) updateMapMarker(currentLat, currentLng);
+}
+
+let trackMarkers = [];
+let trackPolyline = null;
+
+function updateMapMarker(lat, lng) {
+  if (!userMap) return;
+
+  // Current position marker (blue pulsing dot)
+  const icon = L.divIcon({
+    html: `<div style="background:#2563eb;width:16px;height:16px;border-radius:50%;
+           border:3px solid #fff;box-shadow:0 2px 8px rgba(37,99,235,0.6);
+           animation:sosPulse 2s infinite"></div>`,
+    className: '', iconSize: [16,16], iconAnchor: [8,8]
+  });
+  if (!userMarker) {
+    userMarker = L.marker([lat,lng], {icon}).addTo(userMap)
+      .bindPopup(`<b>📍 You are here</b><br>${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+  } else {
+    userMarker.setLatLng([lat,lng])
+      .setPopupContent(`<b>📍 You are here</b><br>${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+  }
+  userMap.setView([lat,lng], 15);
+
+  // Add a small track marker for visited spot (grey dot)
+  if (locHistory.length > 1) {
+    const prev = locHistory[1]; // second entry = previous position
+    const trackIcon = L.divIcon({
+      html: `<div style="background:#64748b;width:9px;height:9px;border-radius:50%;
+             border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.3)"></div>`,
+      className: '', iconSize: [9,9], iconAnchor: [4,4]
+    });
+    const m = L.marker([prev.lat, prev.lng], {icon: trackIcon})
+      .addTo(userMap)
+      .bindPopup(`<b>📌 Stop #${locHistory.length - 1}</b><br>${prev.time}`);
+    trackMarkers.push(m);
+  }
+
+  // Draw polyline connecting all visited points
+  if (locHistory.length >= 2) {
+    const latlngs = locHistory.map(l => [l.lat, l.lng]);
+    if (trackPolyline) {
+      trackPolyline.setLatLngs(latlngs);
+    } else {
+      trackPolyline = L.polyline(latlngs, {
+        color: '#2563eb', weight: 3, opacity: 0.6,
+        dashArray: '6, 8', lineJoin: 'round'
+      }).addTo(userMap);
+    }
+  }
+}
+
+function flyToLocation(lat, lng) {
+  if (!userMap) { goPage('map'); setTimeout(() => userMap.setView([lat,lng],16), 400); return; }
+  userMap.setView([lat,lng], 16);
+  goPage('map');
+}
+
+function clearTrack() {
+  // Remove all track markers
+  trackMarkers.forEach(m => m.remove());
+  trackMarkers = [];
+
+  // Remove polyline
+  if (trackPolyline) { trackPolyline.remove(); trackPolyline = null; }
+
+  // Remove current position marker
+  if (userMarker) { userMarker.remove(); userMarker = null; }
+
+  // Clear history array
+  locHistory.length = 0;
+
+  // Reset coords display
+  ['coords-home','map-coords'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = 'No location yet';
+  });
+
+  // Reset history panel
+  const histEl = document.getElementById('loc-history');
+  if (histEl) histEl.innerHTML = 'Start tracking to see visited places';
+
+  // Reset map view to default
+  if (userMap) userMap.setView([20.5937, 78.9629], 5);
+
+  // Reset current coords
+  currentLat = null;
+  currentLng = null;
+
+  showToast('Track Cleared', 'All visited places removed from map', 'info');
+}
+
+function markSOS(lat, lng) {
+  if (!userMap) return;
+  if (sosMarker) sosMarker.remove();
+  const icon = L.divIcon({html:'<div style="background:#ef4444;width:20px;height:20px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 12px rgba(239,68,68,0.8)"></div>',className:'',iconSize:[20,20],iconAnchor:[10,10]});
+  sosMarker = L.marker([lat,lng],{icon}).addTo(userMap).bindPopup('<b>🆘 SOS Here</b>').openPopup();
+}
+
+// ── Smart SOS Situation Analyzer ─────────────────────────────────────────────
+
+let sosMap = null;
+
+const SITUATIONS = {
+  theft:   { keys:['theft','rob','stolen','steal','pickpocket','snatch','mugger','burglar'], type:'police',   icon:'👮', color:'#ef4444', label:'Theft/Robbery',    action:'Police notified. Sharing your location.' },
+  medical: { keys:['injur','hurt','bleed','sick','pain','faint','unconscious','heart','breath','doctor','hospital','medicine','wound','fall','broke'], type:'hospital', icon:'🏥', color:'#22c55e', label:'Medical Emergency', action:'Ambulance alerted. Sharing your location.' },
+  accident:{ keys:['accident','crash','collide','hit','vehicle','car','bike','road','fell'], type:'hospital', icon:'🚑', color:'#f59e0b', label:'Accident',          action:'Emergency services alerted.' },
+  lost:    { keys:['lost','missing','cant find','dont know','where am i','help me find','direction'], type:'police', icon:'🗺️', color:'#2563eb', label:'Lost',       action:'Sharing your location with contacts.' },
+  fire:    { keys:['fire','burn','smoke','flame','explosion'], type:'fire',    icon:'🔥', color:'#f97316', label:'Fire',             action:'Fire services alerted.' },
+  animal:  { keys:['animal','dog','snake','bite','attack','wild','insect','sting','vet','veterinary'], type:'vet', icon:'🐾', color:'#8b5cf6', label:'Animal Attack', action:'Veterinary/medical help nearby.' },
+  threat:  { keys:['threat','danger','unsafe','scared','follow','stalker','harass','attack','weapon','knife','gun'], type:'police', icon:'🚨', color:'#ef4444', label:'Threat/Danger', action:'Police alerted. Sharing location.' }
+};
+
+const NEARBY_QUERIES = {
+  police:   { query: 'police station', icon: '👮', color: '#ef4444', label: 'Police Station' },
+  hospital: { query: 'hospital',       icon: '🏥', color: '#22c55e', label: 'Hospital' },
+  fire:     { query: 'fire station',   icon: '🚒', color: '#f97316', label: 'Fire Station' },
+  vet:      { query: 'veterinary',     icon: '🐾', color: '#8b5cf6', label: 'Veterinary Clinic' }
+};
+
+function detectSituation(text) {
+  const lower = text.toLowerCase();
+  for (const [key, sit] of Object.entries(SITUATIONS)) {
+    if (sit.keys.some(k => lower.includes(k))) return { key, ...sit };
+  }
+  // Default — general SOS
+  return { key:'general', type:'police', icon:'🆘', color:'#ef4444', label:'Emergency', action:'Alerting authorities and contacts.' };
+}
+
+function quickSituation(key) {
+  const labels = { theft:'theft robbery', medical:'I am injured need medical help', accident:'accident crash', lost:'I am lost', fire:'fire emergency', animal:'animal attack' };
+  document.getElementById('sos-text-input').value = labels[key] || key;
+  analyzeSituation();
+}
+
+async function analyzeSituation() {
+  const text = document.getElementById('sos-text-input').value.trim();
+  if (!text) { showNotif('sos-notif','Please describe your situation first','error'); return; }
+
+  const btn = document.getElementById('sos-analyze-btn');
+  btn.disabled = true; btn.innerHTML = '⏳ Analyzing...';
+
+  const sit = detectSituation(text);
+  const panel = document.getElementById('sos-response-panel');
+  const content = document.getElementById('sos-response-content');
+  const card = document.getElementById('sos-response-card');
+
+  // Build response
+  const sendLocation = currentLat ? `📍 Your location: <b>${currentLat.toFixed(5)}, ${currentLng.toFixed(5)}</b>` : '⚠️ Location not available — start tracking for better help';
+  const autoSOS = ['theft','medical','accident','fire','threat','animal'].includes(sit.key);
+
+  content.innerHTML = `
+    <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1rem">
+      <div style="width:48px;height:48px;border-radius:14px;background:${sit.color}22;display:flex;align-items:center;justify-content:center;font-size:1.5rem;flex-shrink:0">${sit.icon}</div>
+      <div>
+        <div style="font-weight:800;font-size:1rem;color:${sit.color}">${sit.label} Detected</div>
+        <div style="font-size:0.82rem;color:var(--text2)">${sit.action}</div>
+      </div>
+    </div>
+    <div style="background:var(--surface2);border-radius:var(--radius-sm);padding:0.75rem 1rem;margin-bottom:0.75rem;font-size:0.85rem">${sendLocation}</div>
+    <div id="sit-steps" style="display:flex;flex-direction:column;gap:0.5rem;margin-bottom:1rem"></div>
+    ${autoSOS ? `<button class="btn btn-danger btn-full" onclick="triggerSOS('smart:${sit.key}')">🆘 Send SOS Alert Now</button>` : ''}
+    <button class="btn btn-ghost btn-full" style="margin-top:0.5rem" onclick="showNearbyServices('${sit.type}')">📍 Show Nearby ${NEARBY_QUERIES[sit.type]?.label || 'Services'}</button>`;
+
+  // Situation-specific steps
+  const steps = getSituationSteps(sit.key);
+  document.getElementById('sit-steps').innerHTML = steps.map(s =>
+    `<div style="display:flex;align-items:flex-start;gap:0.6rem;padding:0.5rem;background:var(--surface2);border-radius:8px;font-size:0.83rem">
+      <span style="flex-shrink:0">${s.icon}</span><span>${s.text}</span>
+    </div>`).join('');
+
+  card.style.borderLeft = `4px solid ${sit.color}`;
+  panel.style.display = 'block';
+  panel.scrollIntoView({ behavior: 'smooth' });
+
+  // Auto-trigger SOS for critical situations
+  if (autoSOS && currentLat) {
+    await triggerSOS('smart:' + sit.key, text);
+  }
+
+  btn.disabled = false; btn.innerHTML = '🔍 Analyze & Respond';
+}
+
+function getSituationSteps(key) {
+  const steps = {
+    theft:   [{ icon:'📞', text:'Call Police: 100 immediately' },{ icon:'📍', text:'Stay in a public, well-lit area' },{ icon:'🚫', text:'Do not chase the thief — your safety first' },{ icon:'📝', text:'Note description of suspect for police report' }],
+    medical: [{ icon:'📞', text:'Call Ambulance: 108 immediately' },{ icon:'🛑', text:'Do not move if you have a spinal injury' },{ icon:'🩹', text:'Apply pressure to any bleeding wounds' },{ icon:'📍', text:'Your location is being shared with emergency contacts' }],
+    accident:[{ icon:'📞', text:'Call Ambulance: 108 and Police: 100' },{ icon:'🚗', text:'Move away from traffic if safe to do so' },{ icon:'📸', text:'Document the scene if possible' },{ icon:'📍', text:'Stay at location until help arrives' }],
+    lost:    [{ icon:'📍', text:'Your GPS coordinates are being shared' },{ icon:'🏪', text:'Find a shop or public place and ask for help' },{ icon:'📞', text:'Call Tourist Helpline: 1363' },{ icon:'🗺️', text:'Check the map below for your current position' }],
+    fire:    [{ icon:'🚒', text:'Call Fire Services: 101 immediately' },{ icon:'🏃', text:'Evacuate the area immediately' },{ icon:'🚫', text:'Do not use elevators' },{ icon:'👇', text:'Stay low if there is smoke' }],
+    animal:  [{ icon:'🐾', text:'Move away slowly — do not run' },{ icon:'🏥', text:'Seek medical attention for bites immediately' },{ icon:'📞', text:'Call Ambulance: 108 for serious injuries' },{ icon:'🩺', text:'Nearest veterinary clinic shown on map' }],
+    threat:  [{ icon:'📞', text:'Call Police: 100 immediately' },{ icon:'🏃', text:'Move to a crowded public area' },{ icon:'📢', text:'Make noise to attract attention' },{ icon:'📍', text:'Your location is being shared with contacts' }],
+    general: [{ icon:'📞', text:'Call emergency services: 112' },{ icon:'📍', text:'Your location is being shared' },{ icon:'🆘', text:'Press the SOS button to alert all contacts' },{ icon:'🏪', text:'Move to a safe public location' }]
+  };
+  return steps[key] || steps.general;
+}
+
+let sosServiceMap = null;
+
+async function showNearbyServices(type) {
+  const card = document.getElementById('nearby-map-card');
+  const title = document.getElementById('nearby-map-title');
+  const info = NEARBY_QUERIES[type] || NEARBY_QUERIES.police;
+
+  card.style.display = 'block';
+  title.innerHTML = `${info.icon} Nearby ${info.label}`;
+  card.scrollIntoView({ behavior: 'smooth' });
+
+  const lat = currentLat || 20.5937;
+  const lng = currentLng || 78.9629;
+
+  // Init map
+  if (!sosServiceMap) {
+    sosServiceMap = L.map('sos-map').setView([lat, lng], 14);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(sosServiceMap);
+  } else {
+    sosServiceMap.setView([lat, lng], 14);
+  }
+  setTimeout(() => sosServiceMap.invalidateSize(), 200);
+
+  // User marker
+  L.marker([lat, lng], {
+    icon: L.divIcon({ html: '<div style="background:#2563eb;width:14px;height:14px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 8px rgba(37,99,235,0.6)"></div>', className:'', iconSize:[14,14], iconAnchor:[7,7] })
+  }).addTo(sosServiceMap).bindPopup('<b>📍 You are here</b>').openPopup();
+
+  // Use Overpass API to find real nearby places
+  const radius = 3000; // 3km
+  const overpassQuery = `[out:json][timeout:10];(node["amenity"="${getAmenityTag(type)}"](around:${radius},${lat},${lng}););out body 5;`;
+  const url = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(overpassQuery)}`;
+
+  const listEl = document.getElementById('nearby-list');
+  listEl.innerHTML = '<p style="color:var(--text3);font-size:0.82rem">🔍 Searching nearby...</p>';
+
+  try {
+    const res = await fetch(url);
+    const data = await res.json();
+    const places = data.elements || [];
+
+    if (places.length) {
+      places.forEach((p, i) => {
+        const name = p.tags?.name || `${info.label} ${i+1}`;
+        const dist = getDistance(lat, lng, p.lat, p.lon);
+        L.marker([p.lat, p.lon], {
+          icon: L.divIcon({ html: `<div style="background:${info.color};width:12px;height:12px;border-radius:50%;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.4)"></div>`, className:'', iconSize:[12,12], iconAnchor:[6,6] })
+        }).addTo(sosServiceMap).bindPopup(`<b>${info.icon} ${name}</b><br>${dist}m away`);
+      });
+
+      listEl.innerHTML = places.map((p, i) => {
+        const name = p.tags?.name || `${info.label} ${i+1}`;
+        const dist = getDistance(lat, lng, p.lat, p.lon);
+        const mapsUrl = `https://www.openstreetmap.org/directions?from=${lat},${lng}&to=${p.lat},${p.lon}`;
+        return `<div style="display:flex;align-items:center;gap:0.75rem;padding:0.65rem;background:var(--surface2);border-radius:8px">
+          <span style="font-size:1.25rem">${info.icon}</span>
+          <div style="flex:1"><div style="font-size:0.85rem;font-weight:600">${name}</div><div style="font-size:0.75rem;color:var(--text3)">${dist}m away</div></div>
+          <a href="${mapsUrl}" target="_blank" class="btn btn-primary" style="padding:0.3rem 0.65rem;font-size:0.75rem;text-decoration:none">🗺️ Route</a>
+        </div>`;
+      }).join('');
+    } else {
+      // Fallback — show OpenStreetMap search link
+      listEl.innerHTML = `<div style="padding:0.75rem;background:var(--surface2);border-radius:8px;font-size:0.85rem">
+        <p style="color:var(--text2)">No ${info.label.toLowerCase()} found within 3km.</p>
+        <a href="https://www.openstreetmap.org/search?query=${encodeURIComponent(info.query)}+near+${lat},${lng}" target="_blank" class="btn btn-primary" style="margin-top:0.5rem;display:inline-flex;text-decoration:none;padding:0.4rem 0.9rem;font-size:0.8rem">🔍 Search on Map</a>
+      </div>`;
+    }
+  } catch {
+    listEl.innerHTML = `<div style="padding:0.75rem;background:var(--surface2);border-radius:8px;font-size:0.85rem">
+      <p style="color:var(--text2)">Search unavailable offline.</p>
+      <a href="https://www.google.com/maps/search/${encodeURIComponent(info.query)}/@${lat},${lng},15z" target="_blank" class="btn btn-primary" style="margin-top:0.5rem;display:inline-flex;text-decoration:none;padding:0.4rem 0.9rem;font-size:0.8rem">🔍 Open Google Maps</a>
+    </div>`;
+  }
+}
+
+function getAmenityTag(type) {
+  const map = { police:'police', hospital:'hospital', fire:'fire_station', vet:'veterinary' };
+  return map[type] || 'police';
+}
+
+function getDistance(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const dLat = (lat2-lat1) * Math.PI/180;
+  const dLng = (lng2-lng1) * Math.PI/180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+  return Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
+}
+async function triggerSOS(source, customMessage) {
+  const btn = document.getElementById('sos-btn');
+  if (btn) { btn.disabled=true; btn.style.background='radial-gradient(circle at 35% 35%, #991b1b, #7f1d1d)'; }
+  const message = customMessage || `SOS Emergency Alert (${source})`;
+  try {
+    const res  = await fetch(`${API}/alert/sos`,{method:'POST',headers:authH(),body:JSON.stringify({message, latitude:currentLat, longitude:currentLng})});
+    const data = await res.json();
+    if (!res.ok) { showNotif('sos-notif',data.error||'Failed','error'); return; }
+    const notified = data.count > 0 ? ` Notified: ${data.notified.map(c=>c.name).join(', ')}` : '';
+    showNotif('sos-notif','🆘 SOS sent! Help is on the way.' + notified,'success');
+    showToast('🆘 SOS Triggered','Alert sent to admin and contacts','danger');
+    const statusEl = document.getElementById('sos-status');
+    if (statusEl) statusEl.textContent = '✅ Alert sent! Authorities have been notified.';
+    if (currentLat) { markSOS(currentLat,currentLng); }
+    loadStats();
+  } catch { showNotif('sos-notif','Cannot connect to server','error'); }
+  finally { setTimeout(()=>{ if(btn){btn.disabled=false;btn.style.background='';} },3000); }
+}
+
+// ── Voice ─────────────────────────────────────────────────────────────────────
+let recognition=null, voiceActive=false;
+function toggleVoice() {
+  if (voiceActive) { stopVoice(); return; }
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { document.getElementById('voice-status').textContent='❌ Not supported in this browser'; return; }
+  recognition = new SR(); recognition.continuous=true; recognition.lang='en-US'; recognition.interimResults=true;
+  recognition.onstart = () => {
+    voiceActive=true;
+    const btn=document.getElementById('voice-btn');
+    if(btn){btn.textContent='🔴 Listening...';btn.style.background='rgba(239,68,68,0.1)';btn.style.color='var(--danger)';}
+    document.getElementById('voice-status').textContent='🎙️ Describe your situation or say "help me", "theft", "medical"...';
+  };
+  recognition.onresult = e => {
+    const t = Array.from(e.results).map(r=>r[0].transcript).join(' ');
+    document.getElementById('voice-status').textContent = `🎙️ Heard: "${t}"`;
+    // Feed into text input and analyze
+    const input = document.getElementById('sos-text-input');
+    if (input) input.value = t;
+    // Auto-analyze after 1.5s of silence
+    clearTimeout(recognition._analyzeTimer);
+    recognition._analyzeTimer = setTimeout(() => {
+      stopVoice();
+      analyzeSituation();
+    }, 1500);
+  };
+  recognition.onerror = () => stopVoice();
+  recognition.onend = () => { if(voiceActive) recognition.start(); };
+  recognition.start();
+}
+function stopVoice() {
+  voiceActive=false;
+  if(recognition){clearTimeout(recognition._analyzeTimer);recognition.onend=null;recognition.stop();}
+  const btn=document.getElementById('voice-btn');
+  if(btn){btn.textContent='🎙️ Voice';btn.style.background='';btn.style.color='';}
+  document.getElementById('voice-status').textContent='';
+}
+
+// ── Contacts ──────────────────────────────────────────────────────────────────
+async function addContact() {
+  const name  = document.getElementById('c-name').value.trim();
+  const phone = document.getElementById('c-phone').value.trim();
+  const email = document.getElementById('c-email').value.trim();
+  if (!name) { showNotif('contact-notif', 'Name is required', 'error'); return; }
+
+  const btn = document.querySelector('#page-contacts .btn-primary');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Saving...'; }
+
+  try {
+    const res  = await fetch(`${API}/add-contact`, {
+      method: 'POST', headers: authH(),
+      body: JSON.stringify({ name, phone, email })
+    });
+
+    if (res.status === 401) {
+      showNotif('contact-notif', 'Session expired. Please login again.', 'error');
+      setTimeout(() => { localStorage.clear(); window.location.href = 'index.html'; }, 2000);
+      return;
+    }
+
+    const data = await res.json();
+    if (!res.ok) { showNotif('contact-notif', data.error || 'Failed to save', 'error'); return; }
+
+    showNotif('contact-notif', `✅ ${name} added successfully`, 'success');
+    ['c-name','c-phone','c-email'].forEach(id => document.getElementById(id).value = '');
+    loadContacts();
+  } catch (e) {
+    console.error('addContact error:', e);
+    showNotif('contact-notif', 'Cannot connect to server. Is Flask running?', 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '💾 Save Contact'; }
+  }
+}
+
+async function loadContacts() {
+  const el = document.getElementById('contacts-list');
+  try {
+    const res = await fetch(`${API}/contacts`, { headers: authH() });
+
+    if (res.status === 401) {
+      if (el) el.innerHTML = '<p style="color:var(--danger);font-size:0.875rem">Session expired. Please <a href="index.html" style="color:var(--primary)">login again</a>.</p>';
+      return;
+    }
+
+    const contacts = await res.json();
+    const countEl = document.getElementById('st-contacts');
+    const badgeEl = document.getElementById('contact-count');
+    if (countEl) countEl.textContent = contacts.length;
+    if (badgeEl) badgeEl.textContent = `(${contacts.length})`;
+
+    if (!contacts.length) {
+      el.innerHTML = '<p style="color:var(--text3);font-size:0.875rem;text-align:center;padding:1rem">No contacts yet. Add one above.</p>';
+      return;
+    }
+    el.innerHTML = contacts.map(c => `
+      <div class="contact-item">
+        <div class="avatar" style="width:36px;height:36px;font-size:0.85rem">${c.name[0].toUpperCase()}</div>
+        <div class="c-info">
+          <div class="c-name">${c.name}</div>
+          <div class="c-meta">${c.phone ? '📱 '+c.phone : ''} ${c.email ? '✉️ '+c.email : ''}</div>
+        </div>
+        <button class="c-del" onclick="deleteContact(${c.id})" title="Remove">🗑️</button>
+      </div>`).join('');
+  } catch (e) {
+    console.error('loadContacts error:', e);
+    if (el) el.innerHTML = '<p style="color:var(--danger);font-size:0.875rem">Failed to load contacts. Check connection.</p>';
+  }
+}
+
+async function deleteContact(id) {
+  if (!confirm('Remove this contact?')) return;
+  try {
+    const res = await fetch(`${API}/contacts/${id}`, { method: 'DELETE', headers: authH() });
+    if (res.ok) loadContacts();
+    else showToast('Error', 'Failed to delete contact', 'danger');
+  } catch { showToast('Error', 'Cannot connect', 'danger'); }
+}
+
+// ── Weather ───────────────────────────────────────────────────────────────────
+const W_ICONS={'Clear':'☀️','Partly Cloudy':'⛅','Cloudy':'☁️','Light Rain':'🌦️','Heavy Rain':'🌧️','Thunderstorm':'⛈️','Fog':'🌫️','Haze':'😶‍🌫️'};
+const W_RECS={'Clear':'✅ Great weather for sightseeing. Stay hydrated.','Partly Cloudy':'✅ Good conditions. Carry sunscreen.','Cloudy':'🟡 Mild conditions. Light jacket recommended.','Light Rain':'🟡 Carry an umbrella. Watch for slippery surfaces.','Heavy Rain':'🔴 Avoid outdoor activities. Stay indoors if possible.','Thunderstorm':'🔴 Seek shelter immediately. Avoid open areas and trees.','Fog':'🟡 Drive slowly. Use fog lights.','Haze':'🟡 Wear a mask outdoors.'};
+
+async function loadWeather() {
+  const loadingEl = document.getElementById('weather-loading');
+  loadingEl.style.display = 'block';
+  loadingEl.textContent = '📡 Getting your location...';
+  document.getElementById('weather-content').style.display = 'none';
+
+  // Always get fresh GPS location for accurate weather
+  const getLocation = () => new Promise((resolve) => {
+    if (!navigator.geolocation) { resolve({ lat: currentLat||20.5937, lng: currentLng||78.9629, name: 'India' }); return; }
+    navigator.geolocation.getCurrentPosition(
+      pos => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude, name: null }),
+      ()  => resolve({ lat: currentLat||20.5937, lng: currentLng||78.9629, name: null }),
+      { timeout: 6000, maximumAge: 60000 }
+    );
+  });
+
+  const loc = await getLocation();
+  // Update global coords if not already tracking
+  if (!currentLat) { currentLat = loc.lat; currentLng = loc.lng; }
+
+  loadingEl.textContent = '🌤️ Fetching weather data...';
+
+  // Reverse geocode to get city name using Nominatim
+  let locationName = 'Your Location';
+  try {
+    const geoRes = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${loc.lat}&lon=${loc.lng}&format=json`);
+    const geoData = await geoRes.json();
+    const city = geoData.address?.city || geoData.address?.town || geoData.address?.village || geoData.address?.county || '';
+    const state = geoData.address?.state || '';
+    locationName = city ? `${city}, ${state}` : state || 'Your Location';
+  } catch {}
+
+  try {
+    const res = await fetch(`${API}/weather?lat=${loc.lat}&lng=${loc.lng}`, { headers: authH() });
+    const d   = await res.json();
+
+    loadingEl.style.display = 'none';
+    document.getElementById('weather-content').style.display = 'block';
+
+    // Update location label
+    const locLabel = document.getElementById('w-location-label');
+    if (locLabel) locLabel.textContent = `📍 ${locationName}`;
+
+    const card = document.getElementById('weather-card');
+    card.className = `weather-mini${d.danger?' danger':d.warning?' warning':''}`;
+    document.getElementById('w-icon').textContent     = W_ICONS[d.condition] || '🌤️';
+    document.getElementById('w-temp').textContent     = d.temperature;
+    document.getElementById('w-cond').textContent     = d.condition;
+    document.getElementById('w-humidity').textContent = d.humidity + '%';
+    document.getElementById('w-wind').textContent     = d.wind_speed + ' km/h';
+    document.getElementById('w-alerts').innerHTML     = d.alerts.map(a =>
+      `<div style="background:rgba(0,0,0,0.2);border-radius:8px;padding:0.5rem 0.75rem;margin-top:0.5rem;font-size:0.8rem">⚠️ ${a.msg}</div>`
+    ).join('');
+    document.getElementById('w-recs').innerHTML = `<p>${W_RECS[d.condition] || 'Stay safe.'}</p>`;
+
+    // Home card mini update
+    document.getElementById('hw-icon').textContent = W_ICONS[d.condition] || '🌤️';
+    document.getElementById('hw-temp').textContent = d.temperature;
+    document.getElementById('hw-cond').textContent = `${d.condition} · ${locationName}`;
+    document.getElementById('home-weather-card').className = `weather-mini${d.danger?' danger':d.warning?' warning':''}`;
+    document.getElementById('hw-alert').textContent = d.alerts.length ? '⚠️ ' + d.alerts[0].msg : '';
+  } catch {
+    loadingEl.textContent = '❌ Failed to load weather. Check your connection.';
+  }
+}
+
+// ── My Alerts ─────────────────────────────────────────────────────────────────
+async function loadMyAlerts() {
+  const tbody=document.getElementById('my-alerts-body');
+  try {
+    const res=await fetch(`${API}/alerts/my`,{headers:authH()});
+    const alerts=await res.json();
+    if (!alerts.length) { tbody.innerHTML='<tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--text3)">No alerts yet</td></tr>'; return; }
+    tbody.innerHTML=alerts.map((a,i)=>`
+      <tr>
+        <td>${i+1}</td><td>${a.message}</td>
+        <td>${a.latitude?`📍 ${parseFloat(a.latitude).toFixed(4)}, ${parseFloat(a.longitude).toFixed(4)}`:'N/A'}</td>
+        <td><span class="badge badge-${a.status==='Pending'?'danger':'success'}">${a.status}</span></td>
+        <td style="font-size:0.78rem;color:var(--text3)">${new Date(a.created_at).toLocaleString()}</td>
+      </tr>`).join('');
+  } catch { tbody.innerHTML='<tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--text3)">Failed to load</td></tr>'; }
+}
+
+// ── Stats ─────────────────────────────────────────────────────────────────────
+async function loadStats() {
+  try {
+    const [ar,cr]=await Promise.all([fetch(`${API}/alerts/my`,{headers:authH()}),fetch(`${API}/contacts`,{headers:authH()})]);
+    const alerts=await ar.json(), contacts=await cr.json();
+    document.getElementById('st-alerts').textContent=alerts.length;
+    document.getElementById('st-resolved').textContent=alerts.filter(a=>a.status==='Resolved').length;
+    document.getElementById('st-contacts').textContent=contacts.length;
+  } catch {}
+}
+
+// ── Trip Planner ──────────────────────────────────────────────────────────────
+let selectedPrefs=new Set();
+document.querySelectorAll('.chip[data-v]').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    const v=btn.dataset.v;
+    if(selectedPrefs.has(v)){selectedPrefs.delete(v);btn.classList.remove('active');}
+    else{selectedPrefs.add(v);btn.classList.add('active');}
+  });
+});
+const today=new Date(), nw=new Date(today); nw.setDate(today.getDate()+7);
+const ps=document.getElementById('p-start'), pe=document.getElementById('p-end');
+if(ps) ps.value=today.toISOString().slice(0,10);
+if(pe) pe.value=nw.toISOString().slice(0,10);
+
+async function planTrip() {
+  const dest = document.getElementById('p-dest').value.trim();
+  if (!dest) { showNotif('plan-notif', 'Please enter a destination', 'error'); return; }
+  const btn = document.getElementById('plan-btn');
+  btn.disabled = true; btn.innerHTML = '⏳ Generating...';
+  try {
+    const res = await fetch(`${API}/plan-trip`, {
+      method: 'POST', headers: authH(),
+      body: JSON.stringify({
+        destination: dest,
+        start_date: document.getElementById('p-start').value,
+        end_date:   document.getElementById('p-end').value,
+        budget:     document.getElementById('p-budget').value,
+        preferences: [...selectedPrefs]
+      })
+    });
+
+    if (res.status === 401) {
+      // Token expired — clear and redirect to login
+      showNotif('plan-notif', 'Session expired. Please login again.', 'error');
+      setTimeout(() => { localStorage.clear(); window.location.href = 'index.html'; }, 2000);
+      return;
+    }
+
+    const data = await res.json();
+    if (!res.ok) { showNotif('plan-notif', data.error || 'Failed to generate plan', 'error'); return; }
+    renderItinerary(data);
+    loadTrips();
+    showNotif('plan-notif', `✅ Itinerary for ${data.destination} ready!`, 'success');
+  } catch (e) {
+    console.error('planTrip error:', e);
+    showNotif('plan-notif', 'Cannot connect to server. Is Flask running?', 'error');
+  } finally {
+    btn.disabled = false; btn.innerHTML = '🗺️ Generate Itinerary';
+  }
+}
+
+const ACT_ICONS=['🌅','🎯','🌆','🍽️','💡','🎪','🏛️','🌿','🛍️','🎭'];
+function renderItinerary(data) {
+  // Store a deep copy for live editing
+  currentItinerary = data.itinerary.map(d => ({ day: d.day, activities: [...d.activities] }));
+
+  document.getElementById('itinerary-result').style.display='block';
+  document.getElementById('itin-title').textContent=`✈️ ${data.destination} — ${data.days}-Day Itinerary`;
+  document.getElementById('itin-meta').innerHTML=`<span>💰 <b>${data.budget_est}</b></span><span>📍 <b>${(data.top_places||[]).slice(0,3).join(', ')}</b></span><span style="color:var(--danger)">🛡️ ${data.safety_note}</span>`;
+  document.getElementById('itin-cards').innerHTML=data.itinerary.map(day=>`
+    <div class="day-card">
+      <div class="day-card-head">📅 Day ${day.day}</div>
+      <div class="day-card-body">${day.activities.map((a,i)=>`<div class="day-act"><span class="day-act-icon">${ACT_ICONS[i%ACT_ICONS.length]}</span><span>${a}</span></div>`).join('')}</div>
+    </div>`).join('');
+  document.getElementById('itinerary-result').scrollIntoView({behavior:'smooth'});
+}
+
+async function loadTrips() {
+  const el = document.getElementById('saved-trips');
+  try {
+    const res = await fetch(`${API}/trips`, { headers: authH() });
+    if (!res.ok) { el.innerHTML = '<p style="color:var(--text3);font-size:0.875rem">No saved trips yet. Plan one above!</p>'; return; }
+    const trips = await res.json();
+    if (!trips.length) {
+      el.innerHTML = `
+        <div style="text-align:center;padding:1.5rem;background:var(--surface2);border-radius:var(--radius);border:1px dashed var(--border)">
+          <div style="font-size:2rem;margin-bottom:0.5rem">✈️</div>
+          <p style="color:var(--text2);font-size:0.875rem;font-weight:600">No saved trips yet</p>
+          <p style="color:var(--text3);font-size:0.8rem;margin-top:0.25rem">Enter a destination above and click Generate Itinerary</p>
+          <button class="btn btn-primary" style="margin-top:1rem;padding:0.5rem 1.25rem;font-size:0.85rem" onclick="loadSamplePlan()">🗺️ View Sample Plan</button>
+        </div>`;
+      return;
+    }
+    el.innerHTML = trips.map(t => `
+      <div class="trip-card">
+        <div>
+          <div class="trip-dest">✈️ ${t.destination.charAt(0).toUpperCase()+t.destination.slice(1)}</div>
+          <div class="trip-meta">📅 ${t.start_date||'--'} → ${t.end_date||'--'} &nbsp;|&nbsp; 💰 ${t.budget||'mid'} &nbsp;|&nbsp; ${t.itinerary.length} days</div>
+        </div>
+        <div style="display:flex;gap:0.4rem">
+          <button class="btn btn-ghost" style="padding:0.3rem 0.65rem;font-size:0.78rem" onclick="viewTrip(${t.id})">👁 View</button>
+          <button class="btn" style="padding:0.3rem 0.65rem;font-size:0.78rem;background:rgba(239,68,68,0.1);color:var(--danger);border:none;border-radius:8px;cursor:pointer" onclick="deleteTrip(${t.id})">🗑</button>
+        </div>
+      </div>`).join('');
+  } catch {
+    el.innerHTML = `
+      <div style="text-align:center;padding:1.5rem;background:var(--surface2);border-radius:var(--radius)">
+        <p style="color:var(--text3);font-size:0.875rem">No trips yet — plan your first trip above!</p>
+        <button class="btn btn-primary" style="margin-top:0.75rem;padding:0.5rem 1.25rem;font-size:0.85rem" onclick="loadSamplePlan()">🗺️ View Sample Plan</button>
+      </div>`;
+  }
+}
+
+function loadSamplePlan() {
+  const sample = {
+    destination: 'Goa',
+    days: 3,
+    budget_est: '₹3000–5000/day',
+    safety_note: 'Generally safe. Avoid isolated beaches at night. Keep valuables secure.',
+    top_places: ['Baga Beach', 'Dudhsagar Falls', 'Old Goa Churches', 'Anjuna Market', 'Fort Aguada'],
+    must_try: ['Fish Curry Rice', 'Bebinca', 'Feni'],
+    itinerary: [
+      { day: 1, activities: [
+        'Morning: Visit Baga Beach — enjoy the sunrise and take photos',
+        'Afternoon: Water sports experience (parasailing, jet ski)',
+        'Evening: Visit Fort Aguada — stunning sea views',
+        'Dinner: Try Fish Curry Rice at a beachside shack',
+        'Tip: Best season Nov–Feb. Carry sunscreen.'
+      ]},
+      { day: 2, activities: [
+        'Morning: Day trip to Dudhsagar Falls — carry trekking shoes',
+        'Afternoon: Cultural tour of Old Goa Churches (UNESCO Heritage)',
+        'Evening: Anjuna Flea Market — shop for souvenirs',
+        'Dinner: Try Bebinca (traditional Goan dessert)',
+        'Tip: Hire a local guide for Old Goa for best experience.'
+      ]},
+      { day: 3, activities: [
+        'Morning: Palolem Beach — peaceful and scenic',
+        'Afternoon: Relaxation & Spa session',
+        'Evening: Sunset cruise on Mandovi River',
+        'Dinner: Prawn Balchão at a local restaurant',
+        'Tip: Book sunset cruise in advance during peak season.'
+      ]}
+    ]
+  };
+  renderItinerary(sample);
+  document.getElementById('itinerary-result').scrollIntoView({ behavior: 'smooth' });
+}
+
+async function viewTrip(id) {
+  try {
+    const res=await fetch(`${API}/trips`,{headers:authH()});
+    const trips=await res.json();
+    const t=trips.find(x=>x.id===id);
+    if(t) renderItinerary({destination:t.destination,days:t.itinerary.length,itinerary:t.itinerary,budget_est:'Saved trip',safety_note:'Stay safe!',top_places:[],must_try:[]});
+  } catch {}
+}
+
+async function deleteTrip(id) {
+  if (!confirm('Delete this trip?')) return;
+  try { await fetch(`${API}/trips/${id}`,{method:'DELETE',headers:authH()}); loadTrips(); } catch {}
+}
+
+function shareItin() {
+  const title=document.getElementById('itin-title').textContent;
+  if (navigator.share) navigator.share({title,url:window.location.href});
+  else { navigator.clipboard.writeText(title+'\n'+window.location.href); showToast('Copied','Link copied to clipboard','info'); }
+}
+
+// ── Tour Chatbot ──────────────────────────────────────────────────────────────
+let tourChatInit = false;
+let currentItinerary = []; // keeps live copy of itinerary days
+
+function initTourChat() {
+  if (tourChatInit) return; tourChatInit = true;
+  addTourMsg("👋 Hi! I'm your <b>AI Tour Guide</b> 🗺️<br>Ask me about destinations, safety, budget, or best places to visit!<br><br>💡 You can also say things like:<br>• <i>\"Change day 1 evening to museum visit\"</i><br>• <i>\"Replace day 2 morning with yoga session\"</i><br>• <i>\"Add temple visit to day 3 afternoon\"</i>", 'bot');
+}
+
+// Detect if message is an itinerary edit request
+function detectEditIntent(msg) {
+  const lower = msg.toLowerCase();
+  const editWords = ['change','replace','edit','update','swap','modify','add','remove','delete','instead','substitute'];
+  const dayMatch  = lower.match(/day\s*(\d+)/i);
+  const timeMatch = lower.match(/\b(morning|afternoon|evening|dinner|night|lunch|breakfast)\b/i);
+  const hasEdit   = editWords.some(w => lower.includes(w));
+  if (hasEdit && dayMatch) {
+    return { day: parseInt(dayMatch[1]), time: timeMatch ? timeMatch[1] : null };
+  }
+  return null;
+}
+
+// Extract the new activity from the message
+function extractNewActivity(msg, time) {
+  const lower = msg.toLowerCase();
+  // Remove common edit phrases to get the core activity
+  let activity = msg
+    .replace(/change|replace|edit|update|swap|modify|add|remove|delete|instead|substitute/gi, '')
+    .replace(/day\s*\d+/gi, '')
+    .replace(/morning|afternoon|evening|dinner|night|lunch|breakfast/gi, '')
+    .replace(/with|to|the|and|visit|schedule|activity|plan/gi, '')
+    .replace(/\s+/g, ' ').trim();
+
+  // Capitalize first letter
+  if (activity) activity = activity.charAt(0).toUpperCase() + activity.slice(1);
+  const timeLabel = time ? time.charAt(0).toUpperCase() + time.slice(1) : 'Activity';
+  return activity ? `${timeLabel}: ${activity}` : null;
+}
+
+function applyItineraryEdit(dayNum, time, newActivity) {
+  if (!currentItinerary.length) {
+    addTourMsg('⚠️ Please generate an itinerary first, then I can edit it for you!', 'bot');
+    return false;
+  }
+
+  const dayIndex = currentItinerary.findIndex(d => d.day === dayNum);
+  if (dayIndex === -1) {
+    addTourMsg(`⚠️ Day ${dayNum} not found in your itinerary. Your trip has ${currentItinerary.length} days.`, 'bot');
+    return false;
+  }
+
+  const day = currentItinerary[dayIndex];
+  let updated = false;
+
+  if (time) {
+    // Find the activity that matches the time slot
+    const timeKey = time.toLowerCase();
+    const actIndex = day.activities.findIndex(a => a.toLowerCase().includes(timeKey));
+    if (actIndex !== -1) {
+      day.activities[actIndex] = newActivity;
+      updated = true;
+    } else {
+      // Add as new activity if time slot not found
+      day.activities.push(newActivity);
+      updated = true;
+    }
+  } else {
+    // No time specified — replace first non-tip activity
+    const actIndex = day.activities.findIndex(a => !a.toLowerCase().startsWith('tip:'));
+    if (actIndex !== -1) { day.activities[actIndex] = newActivity; updated = true; }
+  }
+
+  if (updated) {
+    // Re-render the itinerary cards
+    const ACT_ICONS = ['🌅','🎯','🌆','🍽️','💡','🎪','🏛️','🌿','🛍️','🎭'];
+    document.getElementById('itin-cards').innerHTML = currentItinerary.map(d => `
+      <div class="day-card">
+        <div class="day-card-head">📅 Day ${d.day}</div>
+        <div class="day-card-body">${d.activities.map((a, i) => `
+          <div class="day-act">
+            <span class="day-act-icon">${ACT_ICONS[i % ACT_ICONS.length]}</span>
+            <span>${a}</span>
+          </div>`).join('')}
+        </div>
+      </div>`).join('');
+
+    // Highlight the updated day card briefly
+    const cards = document.querySelectorAll('.day-card');
+    if (cards[dayIndex]) {
+      cards[dayIndex].style.outline = '2px solid var(--primary)';
+      cards[dayIndex].style.transition = 'outline 0.3s';
+      setTimeout(() => { cards[dayIndex].style.outline = ''; }, 2000);
+      cards[dayIndex].scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }
+  return updated;
+}
+
+function tourChat(text) {
+  const input = document.getElementById('tour-input');
+  const msg   = (text || input.value).trim();
+  if (!msg) return;
+  input.value = '';
+  addTourMsg(escT(msg), 'user');
+
+  // Check for edit intent first
+  const editIntent = detectEditIntent(msg);
+  if (editIntent && currentItinerary.length) {
+    const newAct = extractNewActivity(msg, editIntent.time);
+    if (newAct) {
+      const ok = applyItineraryEdit(editIntent.day, editIntent.time, newAct);
+      if (ok) {
+        addTourMsg(`✅ <b>Day ${editIntent.day} updated!</b><br>
+          ${editIntent.time ? editIntent.time.charAt(0).toUpperCase()+editIntent.time.slice(1) : 'Activity'} changed to: <b>${newAct.replace(/^[^:]+:\s*/,'')}</b><br><br>
+          The itinerary below has been updated. You can keep editing or ask me anything else!`, 'bot');
+        return;
+      }
+    }
+  }
+
+  // Otherwise send to backend chatbot
+  addTourMsg('...', 'bot', 'typing');
+  fetch(`${API}/chatbot`, { method:'POST', headers:authH(), body:JSON.stringify({message:msg}) })
+    .then(r => r.json())
+    .then(d => { removeTourTyping(); addTourMsg(d.reply || 'Sorry, try again.', 'bot'); })
+    .catch(() => { removeTourTyping(); addTourMsg('Cannot connect to server.', 'bot'); });
+}
+
+function addTourMsg(text, role, id) {
+  const el = document.createElement('div');
+  el.className = `tmsg ${role}`;
+  if (id) el.id = 'tour-typing';
+  el.innerHTML = `<div class="tbubble">${text}</div>`;
+  const msgs = document.getElementById('tour-msgs');
+  msgs.appendChild(el);
+  msgs.scrollTop = 9999;
+}
+function removeTourTyping() { const el=document.getElementById('tour-typing'); if(el) el.remove(); }
+function escT(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+loadStats(); loadWeather();
+</script>
+</body>
+</html>

@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Admin Panel – Tourist Safety</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <link rel="stylesheet" href="admin.css"/>
+  <style>
+    /* ── Admin Login Screen ── */
+    #admin-login-screen {
+      position: fixed; inset: 0;
+      background: linear-gradient(135deg, #0d47a1 0%, #1a237e 100%);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 9999;
+    }
+    .login-box {
+      background: #1a1d27; border: 1px solid #2e3250;
+      border-radius: 16px; padding: 2.5rem 2rem;
+      width: 100%; max-width: 400px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    }
+    .login-box .logo { text-align:center; font-size:3rem; margin-bottom:0.5rem; }
+    .login-box h2 { text-align:center; color:#e8eaf6; font-size:1.3rem; margin-bottom:0.25rem; }
+    .login-box p  { text-align:center; color:#8892b0; font-size:0.85rem; margin-bottom:1.75rem; }
+    .login-box label { display:block; color:#8892b0; font-size:0.82rem; font-weight:600; margin-bottom:0.35rem; }
+    .login-box input {
+      width:100%; padding:0.7rem 1rem; border-radius:8px;
+      border:1.5px solid #2e3250; background:#22263a;
+      color:#e8eaf6; font-size:0.95rem; outline:none; margin-bottom:1rem;
+      transition: border-color 0.2s;
+    }
+    .login-box input:focus { border-color:#1a73e8; }
+    .login-box .login-btn {
+      width:100%; padding:0.8rem; border:none; border-radius:8px;
+      background:#1a73e8; color:#fff; font-size:1rem; font-weight:700;
+      cursor:pointer; transition:opacity 0.2s;
+    }
+    .login-box .login-btn:hover { opacity:0.9; }
+    .login-box .login-btn:disabled { opacity:0.6; cursor:not-allowed; }
+    #login-error {
+      background:rgba(229,57,53,0.15); color:#ef5350;
+      border-radius:8px; padding:0.65rem 1rem;
+      font-size:0.85rem; margin-bottom:1rem; display:none;
+    }
+    .login-hint { text-align:center; color:#8892b0; font-size:0.78rem; margin-top:1rem; }
+  </style>
+</head>
+<body>
+
+<!-- ── ADMIN LOGIN SCREEN ── -->
+<div id="admin-login-screen">
+  <div class="login-box">
+    <div class="logo">🛡️</div>
+    <h2>Admin Panel</h2>
+    <p>Tourist Safety Monitoring System</p>
+    <div id="login-error"></div>
+    <label>Email</label>
+    <input type="email" id="al-email" value="admin@tourist.com" placeholder="admin@tourist.com"/>
+    <label>Password</label>
+    <input type="password" id="al-password" value="admin123" placeholder="••••••••"
+           onkeydown="if(event.key==='Enter') adminLogin()"/>
+    <button class="login-btn" id="al-btn" onclick="adminLogin()">🔐 Login to Admin Panel</button>
+    <p class="login-hint">Default: admin@tourist.com / admin123</p>
+    <p class="login-hint" style="margin-top:0.5rem">
+      <span style="cursor:pointer;color:#64748b;text-decoration:underline" onclick="sessionStorage.clear();location.reload()">Clear session & reload</span>
+    </p>
+  </div>
+</div>
+
+<script>
+// Inline login — runs before admin.js, guaranteed to work
+function adminLogin() {
+  const email    = document.getElementById('al-email').value.trim();
+  const password = document.getElementById('al-password').value.trim();
+  const errEl    = document.getElementById('login-error');
+  const btn      = document.getElementById('al-btn');
+  errEl.style.display = 'none';
+  btn.disabled = true;
+  btn.textContent = 'Logging in...';
+  fetch('http://localhost:5000/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: email, password: password })
+  })
+  .then(function(res) { return res.json().then(function(data) { return { ok: res.ok, data: data }; }); })
+  .then(function(r) {
+    if (!r.ok) { errEl.textContent = r.data.error || 'Login failed'; errEl.style.display = 'block'; btn.disabled = false; btn.textContent = '🔐 Login to Admin Panel'; return; }
+    if (!r.data.user || r.data.user.role !== 'admin') { errEl.textContent = 'Access denied. Admin only.'; errEl.style.display = 'block'; btn.disabled = false; btn.textContent = '🔐 Login to Admin Panel'; return; }
+    sessionStorage.setItem('admin_token', r.data.token);
+    sessionStorage.setItem('admin_user', JSON.stringify(r.data.user));
+    document.getElementById('admin-login-screen').style.display = 'none';
+    document.getElementById('admin-name-top').textContent = r.data.user.name || 'Admin';
+    if (typeof loadOverview === 'function') setTimeout(loadOverview, 200);
+  })
+  .catch(function(e) {
+    errEl.textContent = 'Cannot connect to server. Is Flask running on port 5000?';
+    errEl.style.display = 'block';
+    btn.disabled = false;
+    btn.textContent = '🔐 Login to Admin Panel';
+  });
+}
+</script>
+  </div>
+</div>
+
+<!-- ── TOAST ── -->
+<div id="toast-container"></div>
+
+<!-- ── SIDEBAR ── -->
+<div class="sidebar" id="sidebar">
+  <div class="sidebar-brand">
+    <span class="brand-icon">🛡️</span>
+    <span class="brand-text">SafetyAdmin</span>
+  </div>
+  <nav class="sidebar-nav">
+    <a href="#" class="nav-item active" data-section="overview">
+      <span class="nav-icon">📊</span><span class="nav-label">Dashboard</span>
+    </a>
+    <a href="#" class="nav-item" data-section="alerts">
+      <span class="nav-icon">🚨</span><span class="nav-label">Alerts</span>
+      <span class="nav-badge" id="pending-badge">0</span>
+    </a>
+    <a href="#" class="nav-item" data-section="users">
+      <span class="nav-icon">👥</span><span class="nav-label">Tourists</span>
+    </a>
+    <a href="#" class="nav-item" data-section="map">
+      <span class="nav-icon">🗺️</span><span class="nav-label">Live Map</span>
+    </a>
+    <a href="#" class="nav-item" data-section="analytics">
+      <span class="nav-icon">📈</span><span class="nav-label">Analytics</span>
+    </a>
+    <a href="#" class="nav-item" data-section="surveillance">
+      <span class="nav-icon">📹</span><span class="nav-label">Surveillance</span>
+    </a>
+  </nav>
+  <div class="sidebar-footer">
+    <button class="theme-toggle" onclick="toggleTheme()">
+      <span id="theme-icon">☀️</span><span>Light Mode</span>
+    </button>
+    <button class="logout-btn" onclick="adminLogout()">🚪 Logout</button>
+  </div>
+</div>
+
+<!-- ── MAIN ── -->
+<div class="main-wrapper">
+  <header class="topbar">
+    <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
+    <div class="topbar-title" id="topbar-title">Dashboard</div>
+    <div class="topbar-right">
+      <div class="live-dot"><span class="dot"></span> Live</div>
+      <div class="admin-chip">
+        <div class="avatar">A</div>
+        <span id="admin-name-top">Admin</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="content">
+
+    <!-- OVERVIEW -->
+    <section id="section-overview" class="section active">
+      <div class="section-header">
+        <h2>Dashboard Overview</h2>
+        <span class="last-updated">Updated: <span id="last-updated-time">--</span></span>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-card blue">
+          <div class="stat-icon">👥</div>
+          <div class="stat-body"><div class="stat-value" id="s-users">0</div><div class="stat-label">Total Tourists</div></div>
+        </div>
+        <div class="stat-card red">
+          <div class="stat-icon">🚨</div>
+          <div class="stat-body"><div class="stat-value" id="s-pending">0</div><div class="stat-label">Active Alerts</div></div>
+        </div>
+        <div class="stat-card green">
+          <div class="stat-icon">✅</div>
+          <div class="stat-body"><div class="stat-value" id="s-resolved">0</div><div class="stat-label">Resolved Cases</div></div>
+        </div>
+        <div class="stat-card orange">
+          <div class="stat-icon">📋</div>
+          <div class="stat-body"><div class="stat-value" id="s-total">0</div><div class="stat-label">Total Alerts</div></div>
+        </div>
+      </div>
+      <div class="two-col">
+        <div class="card">
+          <div class="card-header">
+            <span>🚨 Recent SOS Alerts</span>
+            <button class="btn-sm btn-outline" onclick="navigate('alerts')">View All</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Tourist</th><th>Message</th><th>Status</th><th>Time</th><th>Action</th></tr></thead>
+              <tbody id="recent-alerts-body"><tr><td colspan="5" class="empty">Loading...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <span>📈 Alerts Overview</span>
+            <div style="display:flex;gap:0.35rem">
+              <button class="btn-sm btn-primary"  id="chart-btn-today" onclick="switchChart('today')">Today</button>
+              <button class="btn-sm btn-outline"  id="chart-btn-week"  onclick="switchChart('week')">Week</button>
+              <button class="btn-sm btn-outline"  id="chart-btn-month" onclick="switchChart('month')">Month</button>
+            </div>
+          </div>
+          <canvas id="chart-today" height="220"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- ALERTS -->
+    <section id="section-alerts" class="section">
+      <div class="section-header">
+        <h2>Alert Management</h2>
+        <button class="btn-sm btn-primary" onclick="loadAlerts()">🔄 Refresh</button>
+      </div>
+      <div class="filter-bar">
+        <input type="text" id="search-input" placeholder="🔍 Search name / message..." oninput="applyFilters()"/>
+        <select id="filter-status" onchange="applyFilters()">
+          <option value="all">All Status</option>
+          <option value="Pending">🔴 Pending</option>
+          <option value="Resolved">✅ Resolved</option>
+        </select>
+        <input type="date" id="filter-date" onchange="applyFilters()"/>
+        <button class="btn-sm btn-outline" onclick="clearFilters()">✕ Clear</button>
+      </div>
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>#</th><th>Tourist</th><th>Email</th><th>Message</th><th>Location</th><th>Status</th><th>Time</th><th>Action</th></tr>
+            </thead>
+            <tbody id="alerts-body"><tr><td colspan="8" class="empty">Loading...</td></tr></tbody>
+          </table>
+        </div>
+        <div class="pagination" id="alerts-pagination"></div>
+      </div>
+    </section>
+
+    <!-- USERS -->
+    <section id="section-users" class="section">
+      <div class="section-header">
+        <h2>Tourist Management</h2>
+        <button class="btn-sm btn-primary" onclick="loadUsers()">🔄 Refresh</button>
+      </div>
+      <div class="filter-bar">
+        <input type="text" id="user-search" placeholder="🔍 Search tourists..." oninput="filterUsers()"/>
+      </div>
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>#</th><th>Name</th><th>Email</th><th>Registered</th><th>Alerts</th><th>Action</th></tr></thead>
+            <tbody id="users-body"><tr><td colspan="6" class="empty">Loading...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- MAP -->
+    <section id="section-map" class="section">
+      <div class="section-header">
+        <h2>Live Location Map</h2>
+        <button class="btn-sm btn-primary" onclick="refreshMap()">🔄 Refresh</button>
+      </div>
+      <div class="two-col" style="grid-template-columns:1fr 280px">
+        <div class="card" style="padding:0;overflow:hidden">
+          <div id="leaflet-map" style="height:500px;width:100%"></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><span>📍 Tourist Locations</span></div>
+          <div id="map-user-list" style="display:flex;flex-direction:column;gap:0.4rem;max-height:460px;overflow-y:auto"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ANALYTICS -->
+    <section id="section-analytics" class="section">
+      <div class="section-header"><h2>Analytics & Reports</h2></div>
+      <div class="stats-grid" style="grid-template-columns:1fr 1fr">
+        <div class="card"><div class="card-header"><span>📊 Alerts Per Day (7 Days)</span></div><canvas id="chart-weekly" height="260"></canvas></div>
+        <div class="card"><div class="card-header"><span>🍩 Status Distribution</span></div><canvas id="chart-donut" height="260"></canvas></div>
+      </div>
+      <div class="card" style="margin-top:1rem">
+        <div class="card-header"><span>📋 Daily Resolution Rate (%)</span></div>
+        <canvas id="chart-bar" height="200"></canvas>
+      </div>
+    </section>
+
+    <!-- SURVEILLANCE -->
+    <section id="section-surveillance" class="section">
+      <div class="section-header">
+        <h2>📹 Surveillance Monitoring</h2>
+        <div style="display:flex;gap:0.5rem">
+          <button class="btn-sm btn-primary" onclick="loadCameras()">🔄 Refresh</button>
+          <button class="btn-sm btn-success" onclick="openAddCamera()">➕ Add Camera</button>
+        </div>
+      </div>
+
+      <!-- Camera Stats -->
+      <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:1.25rem">
+        <div class="stat-card green">
+          <div class="stat-icon">📹</div>
+          <div class="stat-body"><div class="stat-value" id="cam-active">0</div><div class="stat-label">Active Cameras</div></div>
+        </div>
+        <div class="stat-card" style="--accent:#607d8b">
+          <div class="stat-icon">⚫</div>
+          <div class="stat-body"><div class="stat-value" id="cam-inactive">0</div><div class="stat-label">Inactive</div></div>
+        </div>
+        <div class="stat-card red">
+          <div class="stat-icon">⚠️</div>
+          <div class="stat-body"><div class="stat-value" id="cam-incidents">0</div><div class="stat-label">Incidents Today</div></div>
+        </div>
+        <div class="stat-card orange">
+          <div class="stat-icon">🔴</div>
+          <div class="stat-body"><div class="stat-value" id="cam-open">0</div><div class="stat-label">Open Incidents</div></div>
+        </div>
+      </div>
+
+      <div class="two-col" style="grid-template-columns:1fr 1fr;gap:1.25rem">
+        <!-- Camera List -->
+        <div class="card">
+          <div class="card-header"><span>📷 Camera Network</span></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>#</th><th>Location</th><th>Zone</th><th>Status</th><th>Actions</th></tr></thead>
+              <tbody id="cameras-body"><tr><td colspan="5" class="empty">Loading...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Incident Log -->
+        <div class="card">
+          <div class="card-header">
+            <span>🚨 Incident Log</span>
+            <button class="btn-sm btn-outline" onclick="loadIncidents()">🔄</button>
+          </div>
+          <div id="incident-list" style="display:flex;flex-direction:column;gap:0.5rem;max-height:380px;overflow-y:auto">
+            <div class="empty">Loading...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Surveillance Map -->
+      <div class="card" style="margin-top:1.25rem">
+        <div class="card-header"><span>🗺️ Camera Coverage Map</span></div>
+        <div id="surv-map" style="height:400px;border-radius:8px;overflow:hidden"></div>
+      </div>
+    </section>
+
+    <!-- ADD CAMERA MODAL -->
+    <div class="modal-overlay" id="add-camera-modal" onclick="closeAddCamera()">
+      <div class="modal" onclick="event.stopPropagation()">
+        <div class="modal-header">
+          <h3>➕ Add New Camera</h3>
+          <button onclick="closeAddCamera()">✕</button>
+        </div>
+        <div class="modal-body">
+          <div id="add-cam-error" style="background:rgba(229,57,53,0.15);color:#ef5350;border-radius:8px;padding:0.65rem 1rem;font-size:0.85rem;margin-bottom:1rem;display:none"></div>
+          <div class="form-group">
+            <label>Location Name</label>
+            <input type="text" id="cam-location" placeholder="e.g. Main Square, City Park"/>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem">
+            <div class="form-group">
+              <label>Latitude</label>
+              <input type="number" id="cam-lat" placeholder="e.g. 28.6139" step="any"/>
+            </div>
+            <div class="form-group">
+              <label>Longitude</label>
+              <input type="number" id="cam-lng" placeholder="e.g. 77.2090" step="any"/>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem">
+            <div class="form-group">
+              <label>Status</label>
+              <select id="cam-status">
+                <option value="Active">Active</option>
+                <option value="Inactive">Inactive</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Zone</label>
+              <select id="cam-zone">
+                <option value="Public">Public</option>
+                <option value="Tourist">Tourist</option>
+                <option value="Restricted">Restricted</option>
+              </select>
+            </div>
+          </div>
+          <button class="btn-sm btn-primary" style="width:100%;padding:0.75rem;font-size:0.95rem;margin-top:0.5rem" onclick="submitAddCamera()">📹 Add Camera</button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modal-overlay" onclick="closeModal()">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3 id="modal-title">Details</h3>
+      <button onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="admin.js"></script>
+</body>
+</html>
