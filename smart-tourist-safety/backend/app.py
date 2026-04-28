@@ -1106,6 +1106,6 @@ if __name__ == '__main__':
     init_db()
     print("✅ Database ready")
     print("🚀 Open http://localhost:5000 in your browser")
-    app.run(debug=True, port=5000)
-    print("🚀 Open http://localhost:5000 in your browser")
+    PORT = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=PORT)
     app.run(debug=True, port=5000)
